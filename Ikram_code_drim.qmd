@@ -456,7 +456,7 @@ base <- perf_clean %>%
   )
 ```
 
-## 3.3 Verification 
+## 3.3 Verification
 
 ```{r}
 dim(base)
