@@ -1,0 +1,473 @@
+---
+title: "DRiim"
+format: pdf
+editor: visual
+---
+
+# 1) Imporation et préparation de la base 
+```{r}
+library(tidyverse)
+```
+
+## 1.1 Importation des deux fichiers : Origination et Performance
+```{r}
+# Importation fichier origination
+orig <- read_delim(
+  "sample_orig_2024.txt",
+  delim = "|",
+  col_names = FALSE,
+  col_types = cols(.default = col_character()),
+  na = ""
+)
+
+dim(orig)
+```
+
+50 000 observations et 31 variables dans le fichier origine où une ligne correspond à un prêt.
+
+```{r}
+head(orig)
+```
+
+```{r}
+# Imporation fichier performance
+perf <- read_delim(
+  "sample_perf_2024.txt",
+  delim = "|",
+  col_names = FALSE,
+  col_types = cols(.default = col_character()),
+  na = ""
+)
+
+dim(perf)
+```
+952865 observations et 35 variables dans le fichier performance. Il y'a plus de lignes parce qu’un même prêt apparaît plusieurs fois, une fois par mois.
+
+
+```{r}
+head(perf)
+glimpse(perf)
+```
+
+## 1.2 Insertion des noms des colonnnes 
+
+Grace au fichier "File Layout" on peut donner les noms aux variables (car sion X1, X2....)
+
+```{r}
+# Origination
+
+noms_orig <- c(
+  "fico",
+  "first_payment_date",
+  "first_time_homebuyer",
+  "maturity_date",
+  "msa",
+  "mi_percentage",
+  "number_units",
+  "occupancy_status",
+  "cltv",
+  "dti",
+  "original_upb",
+  "ltv",
+  "original_interest_rate",
+  "channel",
+  "prepayment_penalty",
+  "amortization_type",
+  "property_state",
+  "property_type",
+  "postal_code",
+  "loan_id",
+  "loan_purpose",
+  "original_loan_term",
+  "number_borrowers",
+  "seller_name",
+  "super_conforming_flag",
+  "pre_harp_loan_id",
+  "special_eligibility_program",
+  "harp_indicator",
+  "property_valuation_method",
+  "interest_only_indicator",
+  "vantage_score"
+)
+
+names(orig) <- noms_orig
+```
+
+```{r}
+# verif : 
+glimpse(orig)
+```
+
+
+```{r}
+# Fichier Performance 
+
+noms_perf <- c(
+  "loan_id",
+  "period",
+  "current_upb",
+  "delinquency_status",
+  "loan_age",
+  "remaining_maturity",
+  "defect_settlement_date",
+  "modification_flag",
+  "zero_balance_code",
+  "zero_balance_date",
+  "current_interest_rate",
+  "current_non_interest_bearing_upb",
+  "ddlpi",
+  "mi_recoveries",
+  "net_sales_proceeds",
+  "non_mi_recoveries",
+  "total_expenses",
+  "legal_costs",
+  "maintenance_costs",
+  "taxes_insurance",
+  "misc_expenses",
+  "actual_loss",
+  "cumulative_modification_cost",
+  "interest_rate_step",
+  "payment_deferral_flag",
+  "estimated_ltv",
+  "zero_balance_removal_upb",
+  "delinquent_accrued_interest",
+  "delinquency_due_disaster",
+  "borrower_assistance_plan",
+  "current_modification_cost",
+  "current_interest_bearing_upb",
+  "mi_cancellation_indicator",
+  "servicer_name",
+  "bankruptcy_cramdown_costs"
+)
+
+names(perf) <- noms_perf
+```
+
+```{r}
+glimpse(perf)
+```
+
+# 2) Verification et modification des données
+
+
+## 2.1 Visuel sur format des données 
+
+```{r}
+str(orig)
+```
+
+```{r}
+str(perf)
+```
+
+Tout est en caractère donc a modifier ! 
+
+## 2.2  Valeurs manquantes 
+
+```{r}
+# valeurs manquantes actuelles 
+
+sort(colSums(is.na(orig)), decreasing = TRUE)
+
+```
+
+```{r}
+sort(colSums(is.na(perf)), decreasing = TRUE)
+```
+
+à ne pas remplacer pour le moment 
+
+## 2.3 Conversion en bon format 
+
+```{r}
+orig_clean <- orig
+perf_clean <- perf
+```
+
+On code de sorte a ce que si une valeur vaut "9999" (Not Available), on le remplace par NA
+
+```{r}
+# pour voir nombre de modalités pour certaines variables pour voir si on fait plutot caractere ou facteur 
+
+n_distinct(orig_clean$msa)
+n_distinct(orig_clean$postal_code)
+n_distinct(orig_clean$seller_name)
+
+n_distinct(orig_clean$amortization_type)
+n_distinct(orig_clean$loan_purpose)
+n_distinct(orig_clean$occupancy_status)
+```
+
+DONC ici on voit que y'a deux variables (msa et postal_code) qui ont trop de modalités donc on ne peut pas factoriser ! 
+
+Autre point, on voit que "amortization_type" n'a que une modalité (FRM), donc pas de variation, donc a ne pas utiliser comme variable explicative 
+
+```{r}
+# =========================
+# NETTOYAGE ORIGINATION
+# =========================
+
+orig_clean <- orig_clean %>%
+  mutate(
+
+    # -------------------------------------------------
+    # 1. Codes Freddie Mac signifiant "Not Available"
+    # -------------------------------------------------
+
+    fico = na_if(fico, "9999"),
+    vantage_score = na_if(vantage_score, "9999"),
+
+    dti = na_if(dti, "999"),
+    ltv = na_if(ltv, "999"),
+    cltv = na_if(cltv, "999"),
+    mi_percentage = na_if(mi_percentage, "999"),
+
+    number_units = na_if(number_units, "99"),
+    number_borrowers = na_if(number_borrowers, "99"),
+
+    # 000 = code postal inconnu
+    postal_code = na_if(postal_code, "000"),
+
+
+    # -------------------------------------------------
+    # 2. Variables quantitatives -> numeric
+    # -------------------------------------------------
+
+    fico = as.numeric(fico),
+    vantage_score = as.numeric(vantage_score),
+
+    dti = as.numeric(dti),
+    ltv = as.numeric(ltv),
+    cltv = as.numeric(cltv),
+
+    mi_percentage = as.numeric(mi_percentage),
+
+    original_upb = as.numeric(original_upb),
+    original_interest_rate = as.numeric(original_interest_rate),
+    original_loan_term = as.numeric(original_loan_term),
+
+    number_units = as.numeric(number_units),
+    number_borrowers = as.numeric(number_borrowers),
+
+
+    # -------------------------------------------------
+    # 3. Variables catégorielles -> factor
+    # -------------------------------------------------
+
+    first_time_homebuyer = factor(first_time_homebuyer),
+    occupancy_status = factor(occupancy_status),
+    channel = factor(channel),
+    prepayment_penalty = factor(prepayment_penalty),
+
+    # On le garde dans la base mais il ne servira pas
+    # au modèle ici car les 50 000 prêts sont tous FRM
+    amortization_type = factor(amortization_type),
+
+    property_state = factor(property_state),
+    property_type = factor(property_type),
+    loan_purpose = factor(loan_purpose),
+
+    seller_name = factor(seller_name),
+
+    super_conforming_flag = factor(super_conforming_flag),
+    special_eligibility_program = factor(special_eligibility_program),
+    harp_indicator = factor(harp_indicator),
+
+    # Les chiffres ici sont des codes de catégories,
+    # pas des quantités
+    property_valuation_method = factor(property_valuation_method),
+
+    interest_only_indicator = factor(interest_only_indicator)
+  )
+```
+
+
+
+```{r}
+# origination : conversion des dates 
+
+orig_clean <- orig_clean %>%
+  mutate(
+    first_payment_date = as.Date(
+      paste0(first_payment_date, "01"),
+      format = "%Y%m%d"
+    ),
+
+    maturity_date = as.Date(
+      paste0(maturity_date, "01"),
+      format = "%Y%m%d"
+    )
+  )
+```
+
+```{r}
+str(orig_clean)
+```
+
+--- 
+
+```{r}
+# =========================
+# NETTOYAGE PERFORMANCE
+# =========================
+
+perf_clean <- perf_clean %>%
+  mutate(
+
+    # -------------------------------------------------
+    # 1. Valeurs manquantes codées
+    # -------------------------------------------------
+
+    # 999 = Estimated LTV non disponible
+    estimated_ltv = na_if(estimated_ltv, "999"),
+
+
+    # -------------------------------------------------
+    # 2. Variables quantitatives -> numeric
+    # -------------------------------------------------
+
+    current_upb = as.numeric(current_upb),
+    loan_age = as.numeric(loan_age),
+    remaining_maturity = as.numeric(remaining_maturity),
+    current_interest_rate = as.numeric(current_interest_rate),
+
+    current_non_interest_bearing_upb =
+      as.numeric(current_non_interest_bearing_upb),
+
+    estimated_ltv = as.numeric(estimated_ltv),
+
+    cumulative_modification_cost =
+      as.numeric(cumulative_modification_cost),
+
+    current_interest_bearing_upb =
+      as.numeric(current_interest_bearing_upb),
+
+    mi_recoveries = as.numeric(mi_recoveries),
+    net_sales_proceeds = as.numeric(net_sales_proceeds),
+    non_mi_recoveries = as.numeric(non_mi_recoveries),
+    total_expenses = as.numeric(total_expenses),
+    legal_costs = as.numeric(legal_costs),
+    maintenance_costs = as.numeric(maintenance_costs),
+    taxes_insurance = as.numeric(taxes_insurance),
+    misc_expenses = as.numeric(misc_expenses),
+    actual_loss = as.numeric(actual_loss),
+    zero_balance_removal_upb = as.numeric(zero_balance_removal_upb),
+    delinquent_accrued_interest = as.numeric(delinquent_accrued_interest),
+    current_modification_cost = as.numeric(current_modification_cost),
+    bankruptcy_cramdown_costs = as.numeric(bankruptcy_cramdown_costs),
+
+
+    # -------------------------------------------------
+    # 3. Dates YYYYMM -> Date
+    # -------------------------------------------------
+
+    defect_settlement_date = as.Date(
+      paste0(defect_settlement_date, "01"),
+      format = "%Y%m%d"
+    ),
+
+    zero_balance_date = as.Date(
+      paste0(zero_balance_date, "01"),
+      format = "%Y%m%d"
+    ),
+
+    ddlpi = as.Date(
+      paste0(ddlpi, "01"),
+      format = "%Y%m%d"
+    ),
+
+
+    # -------------------------------------------------
+    # 4. Variables catégorielles -> factor
+    # -------------------------------------------------
+
+    delinquency_status = factor(delinquency_status),
+    modification_flag = factor(modification_flag),
+    zero_balance_code = factor(zero_balance_code),
+    interest_rate_step = factor(interest_rate_step),
+    payment_deferral_flag = factor(payment_deferral_flag),
+    delinquency_due_disaster = factor(delinquency_due_disaster),
+    borrower_assistance_plan = factor(borrower_assistance_plan),
+    mi_cancellation_indicator = factor(mi_cancellation_indicator)
+  )
+```
+
+
+ATTENTION : on ne transforme pas "delinquency_status" et "zero_balance_code" car ce sont des codes pas des quantitées 
+
+
+```{r}
+str(perf_clean)
+```
+ok ca a marché 
+
+
+# 3) Jointure des deux fichiers : Origination et Performance
+
+## 3.1 Controle qualité des données avant jointure 
+
+
+```{r}
+#############
+### Doublons 
+############
+
+## fichier origination: 
+nrow(orig_clean)
+n_distinct(orig_clean$loan_id)
+```
+ok chaque prêt apparaît une seule fois dans Origination.
+
+```{r}
+# Vérifier que les prêts de Performance existent dans Origination
+orig_clean %>%
+  count(loan_id) %>%
+  filter(n > 1)
+```
+
+OK vu qu'on obtiens 0 
+
+--- 
+
+Dans Performance, un prêt apparaît plusieurs fois, mais il ne devrait normalement pas avoir deux lignes pour le même prêt et le même mois.
+
+```{r}
+perf_clean %>%
+  count(loan_id, period) %>%
+  filter(n > 1)
+```
+OK vu qu'on obtiens 0 
+
+```{r}
+# pour regarder combien de prêts différents sont dans Performance
+n_distinct(perf_clean$loan_id)
+```
+
+donc ok vu qu'on retrouve bien les 50 000 prets 
+
+## 3.2 Jointure 
+
+```{r}
+base <- perf_clean %>%
+  left_join(
+    orig_clean,
+    by = "loan_id",
+    relationship = "many-to-one"
+  )
+```
+
+## 3.3 Verification 
+
+```{r}
+dim(base)
+```
+c'est bon vu que le nombre de lignes de "base" est exactement le même que perf_clean
+
+```{r}
+nrow(base) == nrow(perf_clean)
+```
+
+ok vu que TRUE
+
+
+# 4) Statistiques descriptives ensuite ?? 
