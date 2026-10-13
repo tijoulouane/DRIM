@@ -406,7 +406,9 @@ perf_clean <- perf_clean %>%
 
     # 999 = Estimated LTV non disponible
     LTV_estime = na_if(LTV_estime, "999"),
-
+    
+    # XX = statut de retard de paiement non disponible
+    Statut_retard_paiement = na_if(Statut_retard_paiement, "XX"),
 
     # -------------------------------------------------
     # 2. Variables quantitatives -> numeric
