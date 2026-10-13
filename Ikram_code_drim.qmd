@@ -5,20 +5,20 @@ editor: visual
 ---
 
 # 1) Imporation et préparation de la base 
+# 1.1 Packages 
 ```{r}
 library(tidyverse)
 ```
 
-## 1.1 Importation des deux fichiers : Origination et Performance
+## 1.2 Importation des deux fichiers : Origination et Performance
+### 1.2.1 Importation fichier origination
 ```{r}
-# Importation fichier origination
 orig <- read_delim(
   "sample_orig_2024.txt",
   delim = "|",
   col_names = FALSE,
   col_types = cols(.default = col_character()),
-  na = ""
-)
+  na = "")
 
 dim(orig)
 ```
@@ -29,33 +29,30 @@ dim(orig)
 head(orig)
 ```
 
+### 1.2.2  Imporation fichier performance
 ```{r}
-# Imporation fichier performance
 perf <- read_delim(
   "sample_perf_2024.txt",
   delim = "|",
   col_names = FALSE,
   col_types = cols(.default = col_character()),
-  na = ""
-)
+  na = "")
 
 dim(perf)
 ```
 952865 observations et 35 variables dans le fichier performance. Il y'a plus de lignes parce qu’un même prêt apparaît plusieurs fois, une fois par mois.
-
 
 ```{r}
 head(perf)
 glimpse(perf)
 ```
 
-## 1.2 Insertion des noms des colonnnes 
+## 1.3 Insertion des noms des colonnnes 
 
 Grace au fichier "File Layout" on peut donner les noms aux variables (car sion X1, X2....)
 
+### 1.3.1 Fichier Origination
 ```{r}
-# Origination
-
 noms_orig <- c(
   "fico",
   "first_payment_date",
@@ -98,10 +95,9 @@ names(orig) <- noms_orig
 glimpse(orig)
 ```
 
+### 1.3.2 Fichier Performance 
 
 ```{r}
-# Fichier Performance 
-
 noms_perf <- c(
   "loan_id",
   "period",
@@ -148,7 +144,6 @@ glimpse(perf)
 ```
 
 # 2) Verification et modification des données
-
 
 ## 2.1 Visuel sur format des données 
 
