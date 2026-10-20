@@ -1,286 +1,362 @@
 ---
-title: "DRIM"
+title: "DRiim"
+format: pdf
+editor: visual
 ---
-# Packages 
+
+# 1) Imporation et préparation de la base 
+# 1.1 Packages 
 ```{r}
-library(data.table)
+library(tidyverse)
 library(naniar)
 library(dplyr)
+library(lubridate)
+library(stringr)
+
 ```
 
+## 1.2 Importation du csv
 
-# Import des deux fichiers de données 
 ```{r}
-base_orig<- fread("sample_2025/sample_orig_2025.txt", sep = "|", header = FALSE, fill = TRUE)
+base <- read_delim(
+  "2026_data_drim_game.csv")
 
-base_perf <- fread("sample_2025/sample_perf_2025.txt", sep = "|", header = FALSE, fill = TRUE)
+dim(base)
 ```
 
-### Entête 
+812 490 observations et 31 variables dans le fichier.
+
 ```{r}
-# En-têtes d'origination
-entetes_orig <- c(
-  "CLASSIC FICO", "FIRST PAYMENT DATE", "FIRST TIME HOMEBUYER INDICATOR", 
-  "MATURITY DATE", "METROPOLITAN STATISTICAL AREA (MSA) OR METROPOLITAN DIVISION", 
-  "MORTGAGE INSURANCE PERCENTAGE (MI %)", "NUMBER OF UNITS", "OCCUPANCY STATUS", 
-  "ORIGINAL COMBINED LOAN-TO-VALUE (CLTV)", "ORIGINAL DEBT-TO-INCOME (DTI) RATIO", 
-  "ORIGINAL UPB", "ORIGINAL LOAN-TO-VALUE (LTV)", "ORIGINAL INTEREST RATE", 
-  "CHANNEL", "PREPAYMENT PENALTY INDICATOR", "AMORTIZATION TYPE", 
-  "PROPERTY STATE", "PROPERTY TYPE", "POSTAL CODE", "LOAN IDENTIFIER", 
-  "LOAN PURPOSE", "ORIGINAL LOAN TERM", "NUMBER OF BORROWERS", "SELLER NAME", 
-  "SUPER CONFORMING FLAG", "PRE-HARP LOAN SEQUENCE NUMBER", 
-  "SPECIAL ELIGIBILITY PROGRAM", "HARP INDICATOR", "PROPERTY VALUATION METHOD", 
-  "INTEREST ONLY (I/O) INDICATOR", "VANTAGESCORE 4.0"
+head(base)
+```
+## 1.3 Insertion des noms des colonnnes 
+
+```{r}
+
+# Renommage des variables de la nouvelle base
+
+noms_base_fr <- c(
+  "Score_credit_FICO",                 # classic_fico_
+  "Premiere_residence_principale",     # first_time_homebuyer_indicator_
+  "Grande_zone_urbaine",               # metropolitan_statistical_area_ms
+  "Taux_assurance_pret",               # mortgage_insurance_percentage_mi
+  "Nombre_de_logement",                # number_of_units_
+  "Statut_occupation_bien",            # occupancy_status_
+  "Ratio_combine_pret_valeur_CLTV",    # original_combined_loan_to_value_
+  "Taux_endettement_DTI",              # original_debt_to_income_dti_rati
+  "Montant_pret",                      # original_upb_
+  "Ratio_pret_valeur_LTV",             # original_loan_to_value_ltv_
+  "Taux_interet_pret",                 # original_interest_rate_
+  "Canal_origination",                 # channel_
+  "Etat_bien",                         # property_state_
+  "Type_bien",                         # property_type_
+  "Code_postal_bien",                  # postal_code_
+  "Identifiant_pret",                  # loan_identifier_
+  "Objet_du_pret",                     # loan_purpose_
+  "Duree_pret_mois",                   # original_loan_term_
+  "Nbr_emprunteur",                    # number_of_borrowers_
+  "Nom_vendeur_pret",                  # seller_name_
+  "Date_premier_paiement",             # first_payment_date_
+  "Date_fin_prevu_pret",               # maturity_date_
+
+  # Nouvelles variables liées à l'événement
+  "Type_evenement",                    # dtt_evenement
+  "Mois_evenement",                    # dtt_mois_evenement
+  "Anciennete_pret_evenement",         # dtt_loan_age_evenement
+  "Capital_restant_du_evenement",      # dtt_curr_upb_final
+  "Statut_retard_paiement_evenement",  # dtt_dlq_status_final
+  "Code_solde_nul_evenement",          # dtt_zb_code_final
+  "Date_solde_nul_evenement",          # dtt_zb_dt_final
+  "Maturite_restante_evenement",       # dtt_rem_months_final
+  "Capital_restant_du_avant_evenement" # dtt_upb_avant_evt
 )
 
+# Appliquer les nouveaux noms
+names(base) <- noms_base_fr
 
-# En-têtes de performance
-entetes_perf <- c(
-  "LOAN IDENTIFIER", "PERIOD", "CURRENT ACTUAL UPB", 
-  "CURRENT LOAN DELINQUENCY STATUS", "LOAN AGE", "REMAINING MONTHS TO LEGAL MATURITY", 
-  "UNDERWRITING DEFECT AND MAJOR SERVICING DEFECT SETTLEMENT DATE", "MODIFICATION FLAG", 
-  "ZERO BALANCE CODE", "ZERO BALANCE EFFECTIVE DATE", "CURRENT INTEREST RATE", 
-  "CURRENT NON-INTEREST BEARING UPB", "DUE DATE OF LAST PAID INSTALLMENT (DDLPI)", 
-  "MI RECOVERIES", "NET SALES PROCEEDS", "NON MI RECOVERIES", "TOTAL EXPENSES", 
-  "LEGAL COSTS", "MAINTENANCE AND PRESERVATION COSTS", "TAXES AND INSURANCE", 
-  "MISCELLANEOUS EXPENSES", "ACTUAL LOSS", "CUMULATIVE MODIFICATION COSTS", 
-  "INTEREST RATE STEP INDICATOR", "PAYMENT DEFERRAL FLAG", "ESTIMATED LOAN-TO-VALUE (ELTV)", 
-  "ZERO BALANCE REMOVAL UPB", "DELINQUENT ACCRUED INTEREST", "DELINQUENCY DUE TO DISASTER", 
-  "BORROWER ASSISTANCE PLAN", "CURRENT PERIOD MODIFICATION COSTS", "CURRENT INTEREST BEARING UPB", 
-  "MORTGAGE INSURANCE CANCELLATION INDICATOR", "SERVICER NAME", "BANKRUPTCY CRAMDOWN COSTS"
-)
-
-
-setnames(base_orig, old = names(base_orig), new = entetes_orig[1:ncol(base_orig)])
-setnames(base_perf, old = names(base_perf), new = entetes_perf[1:ncol(base_perf)])
-```
-
-## Visualisation 
-
-```{r}
-head(base_orig)
-head(base_perf)
-```
-
-# Vérification, types 
-
-## Base orig
-
-```{r}
-str(base_orig)
-```
-
-### Attribution des bon types 
-```{r}
-# Caractère 
-base_orig[, `POSTAL CODE` := as.character(`POSTAL CODE`)]
-base_orig[, `PRE-HARP LOAN SEQUENCE NUMBER` := as.character(`PRE-HARP LOAN SEQUENCE NUMBER`)]
-base_orig[, `SPECIAL ELIGIBILITY PROGRAM` := as.character(`SPECIAL ELIGIBILITY PROGRAM`)]
-
-# Date 
-base_orig[, `FIRST PAYMENT DATE` := as.Date(paste0(`FIRST PAYMENT DATE`, "01"), format = "%Y%m%d")]
-base_orig[, `MATURITY DATE` := as.Date(paste0(`MATURITY DATE`, "01"), format = "%Y%m%d")]
-
-# vérification 
-
-str(base_orig)
-```
-
-## Base_perf 
-
-```{r}
-str(base_perf)
-```
-
-## Attribution des bon types 
-
-```{r}
-# Caractère / Texte
-base_perf[, `MODIFICATION FLAG` := as.character(`MODIFICATION FLAG`)]
-base_perf[, `INTEREST RATE STEP INDICATOR` := as.character(`INTEREST RATE STEP INDICATOR`)]
-base_perf[, `PAYMENT DEFERRAL FLAG` := as.character(`PAYMENT DEFERRAL FLAG`)]
-base_perf[, `DELINQUENCY DUE TO DISASTER` := as.character(`DELINQUENCY DUE TO DISASTER`)]
-base_perf[, `BORROWER ASSISTANCE PLAN` := as.character(`BORROWER ASSISTANCE PLAN`)]
-base_perf[, `MORTGAGE INSURANCE CANCELLATION INDICATOR` := as.character(`MORTGAGE INSURANCE CANCELLATION INDICATOR`)]
-base_perf[, `SERVICER NAME` := as.character(`SERVICER NAME`)]
-
-# Date 
-base_perf[, `PERIOD` := as.Date(paste0(`PERIOD`, "01"), format = "%Y%m%d")]
-base_perf[, `UNDERWRITING DEFECT AND MAJOR SERVICING DEFECT SETTLEMENT DATE` := as.Date(paste0(`UNDERWRITING DEFECT AND MAJOR SERVICING DEFECT SETTLEMENT DATE`, "01"), format = "%Y%m%d")]
-base_perf[, `ZERO BALANCE EFFECTIVE DATE` := as.Date(paste0(`ZERO BALANCE EFFECTIVE DATE`, "01"), format = "%Y%m%d")]
-base_perf[, `DUE DATE OF LAST PAID INSTALLMENT (DDLPI)` := as.Date(paste0(`DUE DATE OF LAST PAID INSTALLMENT (DDLPI)`, "01"), format = "%Y%m%d")]
-
-# Numérique (pour les colonnes financières ou d'indices lues en logi NA dans l'échantillon)
-cols_num_perf <- c("MI RECOVERIES", "NET SALES PROCEEDS", "NON MI RECOVERIES", "TOTAL EXPENSES", 
-                   "LEGAL COSTS", "MAINTENANCE AND PRESERVATION COSTS", "TAXES AND INSURANCE", 
-                   "MISCELLANEOUS EXPENSES", "ACTUAL LOSS", "ZERO BALANCE REMOVAL UPB", 
-                   "DELINQUENT ACCRUED INTEREST", "CURRENT PERIOD MODIFICATION COSTS")
-
-for (col in cols_num_perf) {
-  base_perf[, (col) := as.numeric(get(col))]
-}
-
-# Vérification
-str(base_perf)
-```
-
-
-# Jointure 
-```{r}
-# Fusion des deux bases par "LOAN IDENTIFIER" 
-base_complete <- merge(base_perf, base_orig, by = "LOAN IDENTIFIER", all.x = TRUE)
-
-
-head(base_complete)
-dim(base_complete)
-str(base_complete)
-```
-
-
-## NA 
-
-```{r}
-gg_miss_var(base_complete)
-```
-```{r}
-
-
-# 1. Créer un tableau récapitulatif des valeurs manquantes
-miss_summary <- data.table(
-  Variable = names(base_complete),
-  Nb_Manquantes = colSums(is.na(base_complete)),
-  Pourcentage = round(colSums(is.na(base_complete)) / nrow(base_complete) * 100, 2)
-)
-
-miss_summary |> arrange(desc(Nb_Manquantes))
-
-```
-On garde ces colonnes vides pour l'instant au cas où, quand on va rajouter les autres années. On vérifiera si elles sont encore 100 % vides à ce moment-là, on les enlèvera.
-
-
-
-
-## Renommer les variable pour mieux comprendre
-### Base Orig
-
-```{r}
-base_complete <- base_complete %>%
-  rename(Score_credit_FICO = `CLASSIC FICO`,
-         Date_premier_paiement = `FIRST PAYMENT DATE`,
-         Premiere_residence_principale =`FIRST TIME HOMEBUYER INDICATOR`,
-         Date_fin_prevu_pret = `MATURITY DATE`,
-         Grande_zone_urbaine = `METROPOLITAN STATISTICAL AREA (MSA) OR METROPOLITAN DIVISION`,
-         Taux_assurance_pret = `MORTGAGE INSURANCE PERCENTAGE (MI %)`,
-         Nombre_de_logement = `NUMBER OF UNITS`,
-         Statut_occupation_bien = `OCCUPANCY STATUS`,
-         Ratio_combine_pret_valeur_CLTV = `ORIGINAL COMBINED LOAN-TO-VALUE (CLTV)`,
-         Taux_endettement_DTI = `ORIGINAL DEBT-TO-INCOME (DTI) RATIO`,
-         Montant_pret = `ORIGINAL UPB`,
-         Ratio_pret_valeur_LTV = `ORIGINAL LOAN-TO-VALUE (LTV)`,
-         Taux_interet_pret = `ORIGINAL INTEREST RATE`,
-         Canal_origination = `CHANNEL`,
-         Penalite_remboursement_anticipe = `PREPAYMENT PENALTY INDICATOR`,
-         Type_taux_interet = `AMORTIZATION TYPE`,
-         Etat_bien = `PROPERTY STATE`,
-         Type_bien = `PROPERTY TYPE`,
-         Code_postal_bien = `POSTAL CODE`,
-         Identifiant_pret =`LOAN IDENTIFIER`,
-         Objet_du_pret = `LOAN PURPOSE`,
-         Duree_pret_mois = `ORIGINAL LOAN TERM`,
-         Nbr_emprunteur = `NUMBER OF BORROWERS`,
-         Nom_vendeur_pret = `SELLER NAME`,
-         Pret_depasse_limite = `SUPER CONFORMING FLAG`,
-         ID_pret_avant_refinancement = `PRE-HARP LOAN SEQUENCE NUMBER`,
-         Programme_eligibilite_speciale = `SPECIAL ELIGIBILITY PROGRAM`,
-         Pret_refinance_HARP = `HARP INDICATOR`,
-         Methode_evaluation_bien = `PROPERTY VALUATION METHOD`,
-         Pret_interets_seuls = `INTEREST ONLY (I/O) INDICATOR`,
-         Score_vantage = `VANTAGESCORE 4.0`)
+# Vérifier le résultat
+glimpse(base)
 
 ```
 
-#### Attribution des NA 
+# 2) Verification et modification des données
+
+## 2.1 Visuel sur format des données 
 
 ```{r}
-base_complete <- base_complete |>
+str(base)
+```
+
+
+## 2.2  Valeurs manquantes 
+
+```{r}
+# valeurs manquantes actuelles 
+
+sort(colSums(is.na(base)), decreasing = TRUE)
+
+```
+```{r}
+gg_miss_upset(base)
+```
+On observe que pour certaines variables les valeures manquantes se retrouvent sur les mêmes observations. 
+
+
+## 2.3 Conversion des valeures manquantes  
+
+```{r}
+# On conserve la base initiale
+base_clean <- base
+```
+
+On code de sorte a ce que si une valeur vaut "9999" (Not Available), on le remplace par NA
+
+```{r}
+# 1. Remplacement des codes documentés comme non disponibles
+
+base_clean <- base_clean |>
   mutate(
     Score_credit_FICO = na_if(Score_credit_FICO, 9999),
+
     Taux_assurance_pret = na_if(Taux_assurance_pret, 999),
+
     Nombre_de_logement = na_if(Nombre_de_logement, 99),
-    Statut_occupation_bien = na_if(Statut_occupation_bien, "9"),
-    Ratio_combine_pret_valeur_CLTV = na_if(Ratio_combine_pret_valeur_CLTV, 999),
-    Taux_endettement_DTI = na_if(Taux_endettement_DTI, 999),
-    Ratio_pret_valeur_LTV = na_if(Ratio_pret_valeur_LTV, 999),
-    Canal_origination = na_if(Canal_origination, "9"),
-    Type_bien = na_if(Type_bien, "99"),
-    Objet_du_pret = na_if(Objet_du_pret, "9"),
+
+    Ratio_combine_pret_valeur_CLTV =
+      na_if(Ratio_combine_pret_valeur_CLTV, 999),
+
+    Taux_endettement_DTI =
+      na_if(Taux_endettement_DTI, 999),
+
+    Ratio_pret_valeur_LTV =
+      na_if(Ratio_pret_valeur_LTV, 999),
+
     Nbr_emprunteur = na_if(Nbr_emprunteur, 99),
-    Programme_eligibilite_speciale = na_if(Programme_eligibilite_speciale, ""),
-    Methode_evaluation_bien = na_if(Methode_evaluation_bien, 7),
-    Score_vantage = na_if(Score_vantage, 9999)
+
+    Premiere_residence_principale =
+      na_if(Premiere_residence_principale, "9"),
+
+    Statut_occupation_bien =
+      na_if(Statut_occupation_bien, "9"),
+
+    Canal_origination =
+      na_if(Canal_origination, "9"),
+
+    Type_bien = na_if(Type_bien, "99"),
+
+    Code_postal_bien =
+      na_if(Code_postal_bien, "000"),
+
+    Statut_retard_paiement_evenement =
+      na_if(Statut_retard_paiement_evenement, "XX")
   )
+
 ```
 
-#### Variable binaire 
+## 2.4 Conversion vers les dates 
 
 ```{r}
-# Première résidence principale 
-base_complete <- base_complete %>%
+
+# Fonction de conversion YYYYMM vers une date R
+convertir_yyyymm <- function(x) {
+  x <- as.character(x)
+
+  # On conserve uniquement les valeurs au format YYYYMM
+  valide <- !is.na(x) & grepl("^\\d{6}$", x)
+
+  resultat <- rep(as.Date(NA), length(x))
+
+  resultat[valide] <- suppressWarnings(
+    as.Date(paste0(x[valide], "01"), format = "%Y%m%d")
+  )
+
+  # On écarte également les dates impossibles
+  resultat
+}
+
+base_clean <- base_clean %>%
   mutate(
-    Premiere_residence_principale = case_when(
-      Premiere_residence_principale == "Y" ~ 1,
-      Premiere_residence_principale == "N" ~ 0,
-      Premiere_residence_principale == "9" ~ NA
+    Date_premier_paiement =
+      convertir_yyyymm(Date_premier_paiement),
+
+    Date_fin_prevu_pret =
+      convertir_yyyymm(Date_fin_prevu_pret),
+
+    Mois_evenement =
+      convertir_yyyymm(Mois_evenement),
+
+    Date_solde_nul_evenement =
+      convertir_yyyymm(Date_solde_nul_evenement)
+  )
+
+
+```
+
+## 2.5 Conversion en facteur 
+```{r}
+
+base_clean <- base_clean %>%
+  mutate(
+    Type_evenement = factor(
+      Type_evenement,
+      levels = 0:4,
+      labels = c(
+        "Actif_censure",
+        "Remboursement_anticipe",
+        "Defaut_perte",
+        "Censure_technique",
+        "Maturite_classique"
+      )
+    ),
+
+    Code_solde_nul_evenement = factor(
+      Code_solde_nul_evenement
+    ),
+
+    Statut_retard_paiement_evenement = factor(
+      Statut_retard_paiement_evenement,
+      ordered = FALSE
+    ),
+
+    Premiere_residence_principale = factor(
+      Premiere_residence_principale,
+      levels = c("Y", "N"),
+      labels = c("Oui", "Non")
+    ),
+
+    Statut_occupation_bien = factor(
+      Statut_occupation_bien,
+      levels = c("P", "I", "S"),
+      labels = c(
+        "Residence_principale",
+        "Investissement",
+        "Residence_secondaire"
+      )
+    ),
+
+    Canal_origination = factor(Canal_origination),
+    Etat_bien = factor(Etat_bien),
+    Type_bien = factor(Type_bien),
+    Objet_du_pret = factor(Objet_du_pret),
+    Nom_vendeur_pret = factor(Nom_vendeur_pret),
+    Grande_zone_urbaine = factor(Grande_zone_urbaine)
+  )
+
+# Pour cette variable au moment de l'import elle est passer en numérique et ainsi les codes sont devenu des valeurs, on rétablit alors le format à deux chiffres.
+
+base_clean <- base_clean %>%
+  mutate(
+    Code_solde_nul_evenement = if_else(
+      is.na(Code_solde_nul_evenement),
+      NA_character_,
+      sprintf("%02d", as.integer(
+        as.character(Code_solde_nul_evenement)
+      ))
+    ),
+    Code_solde_nul_evenement = factor(
+      Code_solde_nul_evenement
     )
   )
 
-base_complete$Premiere_residence_principale <- 
-  as.factor(base_complete$Premiere_residence_principale)
+unique(base_clean$Code_solde_nul_evenement)
 
-# Penalité remboursement anticipé 
-base_complete <- base_complete %>%
-  mutate(
-    Penalite_remboursement_anticipe = case_when(
-      Penalite_remboursement_anticipe == "Y" ~ 1,
-      Penalite_remboursement_anticipe == "N" ~ 0,
-      TRUE ~ NA
+
+```
+
+## 2.6 Vérification des valeurs hors des plages 
+
+```{r}
+
+# Résumé des variables numériques
+summary(base_clean %>%
+  select(where(is.numeric)))
+
+# Vérification des principales plages documentées
+controle_plages <- base_clean %>%
+  summarise(
+    FICO_hors_plage = sum(
+      !is.na(Score_credit_FICO) &
+        (Score_credit_FICO < 300 | Score_credit_FICO > 850)
+    ),
+
+    LTV_hors_plage = sum(
+      !is.na(Ratio_pret_valeur_LTV) &
+        (Ratio_pret_valeur_LTV < 1 | Ratio_pret_valeur_LTV > 998)
+    ),
+
+    CLTV_hors_plage = sum(
+      !is.na(Ratio_combine_pret_valeur_CLTV) &
+        (Ratio_combine_pret_valeur_CLTV < 1 |
+           Ratio_combine_pret_valeur_CLTV > 998)
+    ),
+
+    DTI_hors_plage = sum(
+      !is.na(Taux_endettement_DTI) &
+        (Taux_endettement_DTI < 0 | Taux_endettement_DTI > 65)
+    ),
+
+    Taux_interet_non_positif = sum(
+      !is.na(Taux_interet_pret) &
+        Taux_interet_pret <= 0
+    ),
+
+    Montant_pret_non_positif = sum(
+      !is.na(Montant_pret) &
+        Montant_pret <= 0
     )
   )
 
-base_complete$Penalite_remboursement_anticipe <- 
-  as.factor(base_complete$Penalite_remboursement_anticipe)
+controle_plages
 
-# 3 premier num du Code postal 
-
-base_complete <- base_complete %>%
-  mutate(
-    Code_postal_bien = ifelse(Code_postal_bien== "000", NA, Code_postal_bien),
-    Code_postal_bien = as.factor(Code_postal_bien)
-  )
-
-# Pret dépasse la limite 
-
-base_complete <- base_complete |>
-  mutate(
-    Pret_depasse_limite = ifelse(Pret_depasse_limite == "Y", 1, 0)
-  )
-
-# HARP 
-
-base_complete <- base_complete |>
-  mutate(
-    Pret_refinance_HARP = ifelse(Pret_refinance_HARP == "Y", 1, 0)
-  )
-
-# Interet seul 
-
-base_complete <- base_complete |>
-  mutate(
-    Pret_interets_seuls = ifelse(Pret_interets_seuls == "Y", 1, 0)
-  )
 ```
 
 
-### Base perf 
+## 2.7 Vérification des valeures manquante et doublons 
 
-A faire 
+```{r}
+
+# Nombre et pourcentage de valeurs manquantes par variable
+bilan_na <- data.frame(
+  Variable = names(base_clean),
+  Nombre_NA = sapply(base_clean, function(x) sum(is.na(x))),
+  Pourcentage_NA = sapply(
+    base_clean,
+    function(x) mean(is.na(x)) * 100
+  )
+)  |> 
+  arrange(desc(Pourcentage_NA))
+
+print(bilan_na)
+
+# Nombre de lignes et d'identifiants de prêts distincts
+nrow(base_clean)
+
+n_distinct(base_clean$Identifiant_pret)
+
+# Identifiants répétés
+doublons_pret <- base_clean  |> 
+  count(Identifiant_pret, name = "Nombre_lignes") |> 
+  filter(Nombre_lignes > 1)
+
+head(doublons_pret)
+
+```
+
+## 2.8 Observation de la variable cible 
+
+```{r}
+
+base_clean |> 
+  count(Type_evenement)  |> 
+  mutate(
+    Pourcentage = round(n / sum(n) * 100, 2)
+  )  |> 
+  arrange(desc(n))
+
+```
+
+## 2.9 Vérification de la base 
+```{r}
+str(base_clean)
+```
+
